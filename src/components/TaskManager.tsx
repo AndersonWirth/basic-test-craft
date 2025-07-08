@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,12 +58,19 @@ export const TaskManager = () => {
       return;
     }
 
+    // Converter o datetime-local para ISO string mantendo o timezone local
+    let alertTimeISO = null;
+    if (newTask.alert_time) {
+      const localDate = new Date(newTask.alert_time);
+      alertTimeISO = localDate.toISOString();
+    }
+
     const taskData = {
       title: newTask.title,
       description: newTask.description,
       category: newTask.category,
       priority: newTask.priority,
-      alert_time: newTask.alert_time || null,
+      alert_time: alertTimeISO,
     };
 
     const result = await addTask(taskData as any);
@@ -92,7 +100,24 @@ export const TaskManager = () => {
   };
 
   const formatDateTime = (dateTime: string) => {
-    return new Date(dateTime).toLocaleString('pt-BR');
+    // Formatar para exibir no timezone local
+    return new Date(dateTime).toLocaleString('pt-BR', {
+      timeZone: 'America/Sao_Paulo', // Timezone do Brasil
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Função para converter datetime-local para o formato correto no input
+  const getLocalDateTimeValue = (isoString: string) => {
+    const date = new Date(isoString);
+    // Ajustar para o timezone local sem conversão UTC
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().slice(0, 16);
   };
 
   if (loading) {
@@ -200,6 +225,9 @@ export const TaskManager = () => {
                   onChange={(e) => setNewTask({ ...newTask, alert_time: e.target.value })}
                   placeholder="Defina quando deve ser alertado"
                 />
+                <p className="text-xs text-muted-foreground">
+                  O alerta será disparado no horário local definido
+                </p>
               </div>
             </div>
             <DialogFooter>
