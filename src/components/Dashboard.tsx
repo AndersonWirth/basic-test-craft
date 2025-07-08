@@ -2,9 +2,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, CheckCircle, AlertTriangle, Server, Users, Zap, Plus } from "lucide-react";
+import { Clock, CheckCircle, AlertTriangle, Server, Users, Zap, Plus, Bell } from "lucide-react";
 import { useTasks } from "@/hooks/useTasks";
 import { useNotes } from "@/hooks/useNotes";
+import { useTaskAlerts } from "@/hooks/useTaskAlerts";
 import { useMemo } from "react";
 
 interface DashboardProps {
@@ -15,6 +16,9 @@ interface DashboardProps {
 export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardProps) => {
   const { tasks } = useTasks();
   const { notes } = useNotes();
+  
+  // Ativar sistema de alertas sonoros
+  useTaskAlerts(tasks);
 
   const stats = useMemo(() => {
     const pendingTasks = tasks.filter(task => task.status === 'Pendente').length;
@@ -59,9 +63,23 @@ export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardPro
     ];
   }, [tasks, notes]);
 
+  // Ordenar tarefas por prioridade (Crítica primeiro)
   const recentTasks = useMemo(() => {
+    const priorityOrder = { 'Crítica': 1, 'Alta': 2, 'Média': 3, 'Baixa': 4 };
+    
     return tasks
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .sort((a, b) => {
+        // Primeiro por prioridade
+        const priorityA = priorityOrder[a.priority as keyof typeof priorityOrder] || 5;
+        const priorityB = priorityOrder[b.priority as keyof typeof priorityOrder] || 5;
+        
+        if (priorityA !== priorityB) {
+          return priorityA - priorityB;
+        }
+        
+        // Depois por data de criação (mais recente primeiro)
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      })
       .slice(0, 5);
   }, [tasks]);
 
@@ -88,10 +106,15 @@ export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardPro
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, index) => (
-          <Card key={index}>
+          <Card key={index} className={stat.title === "Críticas" && parseInt(stat.value) > 0 ? "border-red-500 bg-red-50 shadow-lg" : ""}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
+              <div className="flex items-center gap-2">
+                <stat.icon className={`h-4 w-4 ${stat.color}`} />
+                {stat.title === "Críticas" && parseInt(stat.value) > 0 && (
+                  <Bell className="h-4 w-4 text-red-500 animate-pulse" />
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
@@ -111,7 +134,7 @@ export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardPro
                   Tarefas Recentes
                 </CardTitle>
                 <CardDescription>
-                  Últimas atividades registradas no sistema
+                  Ordenadas por prioridade - críticas primeiro
                 </CardDescription>
               </div>
               {onNavigateToTasks && (
@@ -125,13 +148,34 @@ export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardPro
             {recentTasks.length > 0 ? (
               <div className="space-y-4">
                 {recentTasks.map((task) => (
-                  <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div 
+                    key={task.id} 
+                    className={`flex items-center justify-between p-3 border rounded-lg transition-all ${
+                      task.priority === 'Crítica' 
+                        ? 'border-red-500 bg-red-50 shadow-md hover:shadow-lg' 
+                        : 'hover:shadow-sm'
+                    }`}
+                  >
                     <div className="flex-1">
-                      <h4 className="text-sm font-medium">{task.title}</h4>
+                      <h4 className={`text-sm font-medium ${
+                        task.priority === 'Crítica' ? 'text-red-800 font-bold' : ''
+                      }`}>
+                        {task.priority === 'Crítica' && '🚨 '}
+                        {task.title}
+                      </h4>
                       <div className="flex items-center gap-2 mt-1">
-                        <div className={`w-2 h-2 rounded-full ${getPriorityColor(task.priority)}`}></div>
-                        <span className="text-xs text-muted-foreground">{task.priority}</span>
+                        <div className={`w-2 h-2 rounded-full ${getPriorityColor(task.priority)} ${
+                          task.priority === 'Crítica' ? 'animate-pulse' : ''
+                        }`}></div>
+                        <span className={`text-xs ${
+                          task.priority === 'Crítica' ? 'text-red-700 font-semibold' : 'text-muted-foreground'
+                        }`}>
+                          {task.priority}
+                        </span>
                         <Badge variant="secondary" className="text-xs">{task.category}</Badge>
+                        {task.priority === 'Crítica' && (
+                          <AlertTriangle className="h-3 w-3 text-red-500 animate-pulse" />
+                        )}
                       </div>
                     </div>
                     <Badge className={getStatusColor(task.status)}>
@@ -202,12 +246,15 @@ export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardPro
               )}
 
               {stats[2].value !== "0" && (
-                <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg shadow-md">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-600 animate-pulse" />
+                    <Bell className="h-4 w-4 text-red-600 animate-pulse" />
+                  </div>
                   <div>
-                    <p className="text-sm font-medium">Atenção necessária</p>
-                    <p className="text-xs text-muted-foreground">
-                      {stats[2].value} tarefa(s) com prioridade crítica
+                    <p className="text-sm font-medium text-red-800">⚠️ Atenção crítica necessária</p>
+                    <p className="text-xs text-red-600">
+                      {stats[2].value} tarefa(s) com prioridade crítica - Alertas sonoros ativos
                     </p>
                   </div>
                 </div>
