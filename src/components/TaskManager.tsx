@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Filter, CheckCircle, Clock, AlertTriangle, Trash2, Loader2 } from "lucide-react";
+import { Plus, Search, Filter, CheckCircle, Clock, AlertTriangle, Trash2, Loader2, Bell } from "lucide-react";
 import { useTasks } from "@/hooks/useTasks";
 
 export const TaskManager = () => {
@@ -21,29 +20,54 @@ export const TaskManager = () => {
     description: "",
     category: "",
     priority: "",
+    alert_time: "",
   });
 
   const categories = ["Infraestrutura", "Segurança", "Desenvolvimento", "Suporte", "Monitoramento"];
   const priorities = ["Baixa", "Média", "Alta", "Crítica"];
   const statuses = ["Pendente", "Em andamento", "Concluída", "Cancelada"];
 
-  const filteredTasks = tasks.filter((task) => {
-    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = filterCategory === "Todas" || task.category === filterCategory;
-    const matchesStatus = filterStatus === "Todas" || task.status === filterStatus;
-    
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
+  // Ordenar tarefas por prioridade (Crítica primeiro)
+  const priorityOrder = { 'Crítica': 1, 'Alta': 2, 'Média': 3, 'Baixa': 4 };
+  
+  const filteredTasks = tasks
+    .filter((task) => {
+      const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesCategory = filterCategory === "Todas" || task.category === filterCategory;
+      const matchesStatus = filterStatus === "Todas" || task.status === filterStatus;
+      
+      return matchesSearch && matchesCategory && matchesStatus;
+    })
+    .sort((a, b) => {
+      // Primeiro por prioridade
+      const priorityA = priorityOrder[a.priority as keyof typeof priorityOrder] || 5;
+      const priorityB = priorityOrder[b.priority as keyof typeof priorityOrder] || 5;
+      
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+      
+      // Depois por data de criação (mais recente primeiro)
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
 
   const handleAddTask = async () => {
     if (!newTask.title || !newTask.category || !newTask.priority) {
       return;
     }
 
-    const result = await addTask(newTask);
+    const taskData = {
+      title: newTask.title,
+      description: newTask.description,
+      category: newTask.category,
+      priority: newTask.priority,
+      alert_time: newTask.alert_time || null,
+    };
+
+    const result = await addTask(taskData as any);
     if (result) {
-      setNewTask({ title: "", description: "", category: "", priority: "" });
+      setNewTask({ title: "", description: "", category: "", priority: "", alert_time: "" });
       setIsAddingTask(false);
     }
   };
@@ -65,6 +89,10 @@ export const TaskManager = () => {
       case "Pendente": return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
       default: return <Clock className="h-4 w-4 text-gray-500" />;
     }
+  };
+
+  const formatDateTime = (dateTime: string) => {
+    return new Date(dateTime).toLocaleString('pt-BR');
   };
 
   if (loading) {
@@ -123,7 +151,7 @@ export const TaskManager = () => {
               Nova Tarefa
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Adicionar Nova Tarefa</DialogTitle>
               <DialogDescription>
@@ -161,6 +189,18 @@ export const TaskManager = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <div className="space-y-2">
+                <label className="text-sm font-medium flex items-center gap-2">
+                  <Bell className="h-4 w-4" />
+                  Horário do Alerta (opcional)
+                </label>
+                <Input
+                  type="datetime-local"
+                  value={newTask.alert_time}
+                  onChange={(e) => setNewTask({ ...newTask, alert_time: e.target.value })}
+                  placeholder="Defina quando deve ser alertado"
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAddingTask(false)}>
@@ -174,12 +214,24 @@ export const TaskManager = () => {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filteredTasks.map((task) => (
-          <Card key={task.id} className="relative">
+          <Card 
+            key={task.id} 
+            className={`relative ${
+              task.priority === 'Crítica' 
+                ? 'border-red-500 bg-red-50 shadow-lg ring-2 ring-red-200' 
+                : ''
+            }`}
+          >
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
                   {getStatusIcon(task.status)}
-                  <CardTitle className="text-lg">{task.title}</CardTitle>
+                  <CardTitle className={`text-lg ${
+                    task.priority === 'Crítica' ? 'text-red-800 font-bold' : ''
+                  }`}>
+                    {task.priority === 'Crítica' && '🚨 '}
+                    {task.title}
+                  </CardTitle>
                 </div>
                 <Button
                   variant="ghost"
@@ -190,16 +242,42 @@ export const TaskManager = () => {
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${getPriorityColor(task.priority)}`}></div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className={`w-2 h-2 rounded-full ${getPriorityColor(task.priority)} ${
+                  task.priority === 'Crítica' ? 'animate-pulse' : ''
+                }`}></div>
                 <Badge variant="secondary">{task.category}</Badge>
-                <Badge variant="outline">{task.priority}</Badge>
+                <Badge 
+                  variant="outline" 
+                  className={task.priority === 'Crítica' ? 'border-red-500 text-red-700 font-semibold' : ''}
+                >
+                  {task.priority}
+                </Badge>
+                {task.alert_time && (
+                  <Badge variant="outline" className="text-blue-600 border-blue-300">
+                    <Bell className="h-3 w-3 mr-1" />
+                    Alerta
+                  </Badge>
+                )}
               </div>
             </CardHeader>
             <CardContent className="pt-0">
               <CardDescription className="mb-4">
                 {task.description || "Sem descrição"}
               </CardDescription>
+              
+              {task.alert_time && (
+                <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                  <div className="flex items-center gap-1">
+                    <Bell className="h-3 w-3 text-blue-600" />
+                    <span className="font-medium text-blue-800">Alerta programado:</span>
+                  </div>
+                  <span className="text-blue-700">
+                    {formatDateTime(task.alert_time)}
+                  </span>
+                </div>
+              )}
+              
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
                   {new Date(task.created_at).toLocaleDateString('pt-BR')}

@@ -13,6 +13,8 @@ export interface Task {
   status: string;
   created_at: string;
   updated_at: string;
+  alert_time: string | null;
+  alert_sent: boolean | null;
 }
 
 export const useTasks = () => {
@@ -47,6 +49,7 @@ export const useTasks = () => {
     description: string;
     category: string;
     priority: string;
+    alert_time?: string | null;
   }) => {
     if (!user) return;
 
@@ -55,6 +58,7 @@ export const useTasks = () => {
       .insert({
         ...taskData,
         user_id: user.id,
+        alert_time: taskData.alert_time || null,
       })
       .select()
       .single();

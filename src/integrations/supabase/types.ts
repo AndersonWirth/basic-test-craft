@@ -46,6 +46,8 @@ export type Database = {
       }
       tasks: {
         Row: {
+          alert_sent: boolean | null
+          alert_time: string | null
           category: string
           created_at: string
           description: string | null
@@ -57,6 +59,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          alert_sent?: boolean | null
+          alert_time?: string | null
           category: string
           created_at?: string
           description?: string | null
@@ -68,6 +72,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          alert_sent?: boolean | null
+          alert_time?: string | null
           category?: string
           created_at?: string
           description?: string | null
