@@ -57,16 +57,11 @@ export const TaskManager = () => {
       return;
     }
 
-    // Converter o datetime-local para UTC mantendo o horário correto
+    // Salvar o datetime-local diretamente como string ISO
     let alertTimeISO = null;
     if (newTask.alert_time) {
-      // O valor do input datetime-local já está no timezone local
-      // Vamos converter para UTC de forma adequada
-      const localDate = new Date(newTask.alert_time);
-      // Ajustar para UTC considerando o fuso horário local
-      const offsetMinutes = localDate.getTimezoneOffset();
-      const utcDate = new Date(localDate.getTime() - (offsetMinutes * 60000));
-      alertTimeISO = utcDate.toISOString();
+      // Apenas adicionar os segundos e timezone para formar um ISO válido
+      alertTimeISO = newTask.alert_time + ':00.000Z';
     }
 
     const taskData = {
@@ -104,15 +99,13 @@ export const TaskManager = () => {
   };
 
   const formatDateTime = (dateTime: string) => {
-    // Converter UTC para horário local brasileiro para exibição
-    const utcDate = new Date(dateTime);
-    return utcDate.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    // Extrair apenas a parte da data e hora, ignorando timezone
+    const isoString = dateTime.replace('Z', '');
+    const [datePart, timePart] = isoString.split('T');
+    const [year, month, day] = datePart.split('-');
+    const [hour, minute] = timePart.split(':');
+    
+    return `${day}/${month}/${year} ${hour}:${minute}`;
   };
 
   if (loading) {
