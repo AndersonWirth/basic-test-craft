@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,11 +57,16 @@ export const TaskManager = () => {
       return;
     }
 
-    // Converter o datetime-local para ISO string mantendo o timezone local
+    // Converter o datetime-local para UTC mantendo o horário correto
     let alertTimeISO = null;
     if (newTask.alert_time) {
+      // O valor do input datetime-local já está no timezone local
+      // Vamos converter para UTC de forma adequada
       const localDate = new Date(newTask.alert_time);
-      alertTimeISO = localDate.toISOString();
+      // Ajustar para UTC considerando o fuso horário local
+      const offsetMinutes = localDate.getTimezoneOffset();
+      const utcDate = new Date(localDate.getTime() - (offsetMinutes * 60000));
+      alertTimeISO = utcDate.toISOString();
     }
 
     const taskData = {
@@ -100,24 +104,15 @@ export const TaskManager = () => {
   };
 
   const formatDateTime = (dateTime: string) => {
-    // Formatar para exibir no timezone local
-    return new Date(dateTime).toLocaleString('pt-BR', {
-      timeZone: 'America/Sao_Paulo', // Timezone do Brasil
+    // Converter UTC para horário local brasileiro para exibição
+    const utcDate = new Date(dateTime);
+    return utcDate.toLocaleString('pt-BR', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  // Função para converter datetime-local para o formato correto no input
-  const getLocalDateTimeValue = (isoString: string) => {
-    const date = new Date(isoString);
-    // Ajustar para o timezone local sem conversão UTC
-    const offset = date.getTimezoneOffset();
-    const localDate = new Date(date.getTime() - (offset * 60 * 1000));
-    return localDate.toISOString().slice(0, 16);
   };
 
   if (loading) {
