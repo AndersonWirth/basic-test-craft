@@ -73,8 +73,9 @@ export const useTaskAlerts = (tasks: Task[]) => {
   const checkScheduledAlerts = useCallback(() => {
     const now = new Date();
     
-    // Filtrar tarefas que têm horário de alerta definido e ainda não foram notificadas
+    // Filtrar APENAS tarefas que têm horário de alerta definido
     const tasksToAlert = tasks.filter(task => {
+      // Só processar tarefas que têm alert_time definido
       if (!task.alert_time) return false;
       
       const alertTime = new Date(task.alert_time);
@@ -116,23 +117,6 @@ export const useTaskAlerts = (tasks: Task[]) => {
     }
   }, [tasks, playAlertSound, toast, showNotification]);
 
-  const checkCriticalTasks = useCallback(() => {
-    const criticalPendingTasks = tasks.filter(task => 
-      task.priority === 'Crítica' && 
-      (task.status === 'Pendente' || task.status === 'Agendada')
-    );
-
-    if (criticalPendingTasks.length > 0) {
-      playAlertSound();
-      
-      toast({
-        title: "🚨 Alerta de Tarefa Crítica",
-        description: `${criticalPendingTasks.length} tarefa(s) crítica(s) precisam de atenção imediata!`,
-        variant: "destructive",
-      });
-    }
-  }, [tasks, playAlertSound, toast]);
-
   useEffect(() => {
     // Solicitar permissão para notificações quando o hook é inicializado
     if ('Notification' in window && Notification.permission === 'default') {
@@ -147,23 +131,18 @@ export const useTaskAlerts = (tasks: Task[]) => {
       checkScheduledAlerts();
     }, 30000);
 
-    // Verificar alertas críticos a cada 5 minutos
-    const criticalInterval = setInterval(checkCriticalTasks, 5 * 60 * 1000);
-    
-    // Verificar imediatamente ao carregar
+    // Verificar imediatamente ao carregar (aguardar 2 segundos para evitar alertas na criação)
     const timeoutId = setTimeout(() => {
       checkScheduledAlerts();
-      checkCriticalTasks();
     }, 2000);
 
     alertIntervalRef.current = alertInterval;
 
     return () => {
       clearInterval(alertInterval);
-      clearInterval(criticalInterval);
       clearTimeout(timeoutId);
     };
-  }, [checkScheduledAlerts, checkCriticalTasks]);
+  }, [checkScheduledAlerts]);
 
   // Limpar notificações quando as tarefas são concluídas
   useEffect(() => {
@@ -173,5 +152,5 @@ export const useTaskAlerts = (tasks: Task[]) => {
     });
   }, [tasks]);
 
-  return { playAlertSound, checkCriticalTasks, checkScheduledAlerts };
+  return { playAlertSound, checkScheduledAlerts };
 };
