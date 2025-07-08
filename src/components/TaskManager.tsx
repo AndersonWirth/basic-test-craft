@@ -7,50 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Filter, CheckCircle, Clock, AlertTriangle, Trash2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-
-interface Task {
-  id: number;
-  title: string;
-  description: string;
-  category: string;
-  priority: string;
-  status: string;
-  createdAt: Date;
-}
+import { Plus, Search, Filter, CheckCircle, Clock, AlertTriangle, Trash2, Loader2 } from "lucide-react";
+import { useTasks } from "@/hooks/useTasks";
 
 export const TaskManager = () => {
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: 1,
-      title: "Atualizar servidor de backup principal",
-      description: "Aplicar patches de segurança e atualizar sistema operacional",
-      category: "Infraestrutura",
-      priority: "Alta",
-      status: "Em andamento",
-      createdAt: new Date(2024, 0, 15),
-    },
-    {
-      id: 2,
-      title: "Configurar nova VPN corporativa",
-      description: "Implementar solução VPN para trabalho remoto seguro",
-      category: "Segurança",
-      priority: "Média",
-      status: "Pendente",
-      createdAt: new Date(2024, 0, 14),
-    },
-    {
-      id: 3,
-      title: "Auditoria de segurança mensal",
-      description: "Revisar logs de segurança e verificar vulnerabilidades",
-      category: "Segurança",
-      priority: "Alta",
-      status: "Concluída",
-      createdAt: new Date(2024, 0, 13),
-    },
-  ]);
-
+  const { tasks, loading, addTask, updateTaskStatus, deleteTask } = useTasks();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("Todas");
   const [filterStatus, setFilterStatus] = useState("Todas");
@@ -62,68 +23,29 @@ export const TaskManager = () => {
     priority: "",
   });
 
-  const { toast } = useToast();
-
   const categories = ["Infraestrutura", "Segurança", "Desenvolvimento", "Suporte", "Monitoramento"];
   const priorities = ["Baixa", "Média", "Alta", "Crítica"];
   const statuses = ["Pendente", "Em andamento", "Concluída", "Cancelada"];
 
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         task.description.toLowerCase().includes(searchTerm.toLowerCase());
+                         (task.description && task.description.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesCategory = filterCategory === "Todas" || task.category === filterCategory;
     const matchesStatus = filterStatus === "Todas" || task.status === filterStatus;
     
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
-  const addTask = () => {
+  const handleAddTask = async () => {
     if (!newTask.title || !newTask.category || !newTask.priority) {
-      toast({
-        title: "Erro",
-        description: "Preencha todos os campos obrigatórios",
-        variant: "destructive",
-      });
       return;
     }
 
-    const task: Task = {
-      id: Date.now(),
-      title: newTask.title,
-      description: newTask.description,
-      category: newTask.category,
-      priority: newTask.priority,
-      status: "Pendente",
-      createdAt: new Date(),
-    };
-
-    setTasks([...tasks, task]);
-    setNewTask({ title: "", description: "", category: "", priority: "" });
-    setIsAddingTask(false);
-    
-    toast({
-      title: "Sucesso",
-      description: "Tarefa adicionada com sucesso!",
-    });
-  };
-
-  const updateTaskStatus = (id: number, status: string) => {
-    setTasks(tasks.map(task => 
-      task.id === id ? { ...task, status } : task
-    ));
-    
-    toast({
-      title: "Atualizado",
-      description: `Status da tarefa atualizado para: ${status}`,
-    });
-  };
-
-  const deleteTask = (id: number) => {
-    setTasks(tasks.filter(task => task.id !== id));
-    toast({
-      title: "Removido",
-      description: "Tarefa removida com sucesso",
-    });
+    const result = await addTask(newTask);
+    if (result) {
+      setNewTask({ title: "", description: "", category: "", priority: "" });
+      setIsAddingTask(false);
+    }
   };
 
   const getPriorityColor = (priority: string) => {
@@ -144,6 +66,15 @@ export const TaskManager = () => {
       default: return <Clock className="h-4 w-4 text-gray-500" />;
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Carregando tarefas...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -235,7 +166,7 @@ export const TaskManager = () => {
               <Button variant="outline" onClick={() => setIsAddingTask(false)}>
                 Cancelar
               </Button>
-              <Button onClick={addTask}>Adicionar Tarefa</Button>
+              <Button onClick={handleAddTask}>Adicionar Tarefa</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -271,7 +202,7 @@ export const TaskManager = () => {
               </CardDescription>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
-                  {task.createdAt.toLocaleDateString('pt-BR')}
+                  {new Date(task.created_at).toLocaleDateString('pt-BR')}
                 </span>
                 <Select 
                   value={task.status} 

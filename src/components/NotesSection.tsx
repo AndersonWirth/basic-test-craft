@@ -6,139 +6,66 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, Calendar, Edit, Trash2, FileText } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-
-interface Note {
-  id: number;
-  title: string;
-  content: string;
-  tags: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
+import { Plus, Search, Calendar, Edit, Trash2, FileText, Loader2 } from "lucide-react";
+import { useNotes } from "@/hooks/useNotes";
 
 export const NotesSection = () => {
-  const [notes, setNotes] = useState<Note[]>([
-    {
-      id: 1,
-      title: "Reunião com equipe de desenvolvimento",
-      content: "Pontos discutidos:\n- Nova arquitetura do sistema\n- Prazo para entrega: 15/02\n- Recursos necessários: 2 desenvolvedores\n- Revisão de código semanal",
-      tags: ["reunião", "desenvolvimento", "arquitetura"],
-      createdAt: new Date(2024, 0, 15),
-      updatedAt: new Date(2024, 0, 15),
-    },
-    {
-      id: 2,
-      title: "Configurações do servidor de produção",
-      content: "Servidor: srv-prod-01\nIP: 192.168.1.100\nRAM: 32GB\nCPU: Intel Xeon 8 cores\nSO: Ubuntu 20.04 LTS\n\nServiços rodando:\n- Apache 2.4\n- MySQL 8.0\n- PHP 7.4\n- Redis",
-      tags: ["servidor", "produção", "configuração"],
-      createdAt: new Date(2024, 0, 14),
-      updatedAt: new Date(2024, 0, 14),
-    },
-    {
-      id: 3,
-      title: "Plano de backup e recuperação",
-      content: "Estratégia de backup:\n1. Backup diário automático às 2h\n2. Backup semanal completo aos domingos\n3. Backup mensal arquivado\n4. Testes de recuperação trimestrais\n\nLocalização dos backups: /backup/daily, /backup/weekly, /backup/monthly",
-      tags: ["backup", "recuperação", "plano"],
-      createdAt: new Date(2024, 0, 13),
-      updatedAt: new Date(2024, 0, 13),
-    },
-  ]);
-
+  const { notes, loading, addNote, updateNote, deleteNote } = useNotes();
   const [searchTerm, setSearchTerm] = useState("");
   const [isAddingNote, setIsAddingNote] = useState(false);
-  const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [editingNote, setEditingNote] = useState<any>(null);
   const [newNote, setNewNote] = useState({
     title: "",
     content: "",
     tags: "",
   });
 
-  const { toast } = useToast();
-
   const filteredNotes = notes.filter((note) => {
     const searchLower = searchTerm.toLowerCase();
     return (
       note.title.toLowerCase().includes(searchLower) ||
-      note.content.toLowerCase().includes(searchLower) ||
+      (note.content && note.content.toLowerCase().includes(searchLower)) ||
       note.tags.some(tag => tag.toLowerCase().includes(searchLower))
     );
   });
 
-  const addNote = () => {
+  const handleAddNote = async () => {
     if (!newNote.title.trim()) {
-      toast({
-        title: "Erro",
-        description: "O título da anotação é obrigatório",
-        variant: "destructive",
-      });
       return;
     }
 
-    const note: Note = {
-      id: Date.now(),
+    const result = await addNote({
       title: newNote.title,
       content: newNote.content,
       tags: newNote.tags.split(",").map(tag => tag.trim()).filter(tag => tag),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    setNotes([note, ...notes]);
-    setNewNote({ title: "", content: "", tags: "" });
-    setIsAddingNote(false);
-    
-    toast({
-      title: "Sucesso",
-      description: "Anotação adicionada com sucesso!",
     });
+
+    if (result) {
+      setNewNote({ title: "", content: "", tags: "" });
+      setIsAddingNote(false);
+    }
   };
 
-  const updateNote = () => {
+  const handleUpdateNote = async () => {
     if (!editingNote || !newNote.title.trim()) {
-      toast({
-        title: "Erro",
-        description: "O título da anotação é obrigatório",
-        variant: "destructive",
-      });
       return;
     }
 
-    setNotes(notes.map(note => 
-      note.id === editingNote.id 
-        ? {
-            ...note,
-            title: newNote.title,
-            content: newNote.content,
-            tags: newNote.tags.split(",").map(tag => tag.trim()).filter(tag => tag),
-            updatedAt: new Date(),
-          }
-        : note
-    ));
+    await updateNote(editingNote.id, {
+      title: newNote.title,
+      content: newNote.content,
+      tags: newNote.tags.split(",").map(tag => tag.trim()).filter(tag => tag),
+    });
 
     setEditingNote(null);
     setNewNote({ title: "", content: "", tags: "" });
-    
-    toast({
-      title: "Sucesso",
-      description: "Anotação atualizada com sucesso!",
-    });
   };
 
-  const deleteNote = (id: number) => {
-    setNotes(notes.filter(note => note.id !== id));
-    toast({
-      title: "Removido",
-      description: "Anotação removida com sucesso",
-    });
-  };
-
-  const startEditing = (note: Note) => {
+  const startEditing = (note: any) => {
     setEditingNote(note);
     setNewNote({
       title: note.title,
-      content: note.content,
+      content: note.content || "",
       tags: note.tags.join(", "),
     });
   };
@@ -147,6 +74,15 @@ export const NotesSection = () => {
     setEditingNote(null);
     setNewNote({ title: "", content: "", tags: "" });
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin" />
+        <span className="ml-2">Carregando anotações...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -210,7 +146,7 @@ export const NotesSection = () => {
               }}>
                 Cancelar
               </Button>
-              <Button onClick={editingNote ? updateNote : addNote}>
+              <Button onClick={editingNote ? handleUpdateNote : handleAddNote}>
                 {editingNote ? "Salvar Alterações" : "Adicionar Anotação"}
               </Button>
             </DialogFooter>
@@ -245,8 +181,8 @@ export const NotesSection = () => {
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="h-4 w-4" />
-                <span>{note.createdAt.toLocaleDateString('pt-BR')}</span>
-                {note.updatedAt > note.createdAt && (
+                <span>{new Date(note.created_at).toLocaleDateString('pt-BR')}</span>
+                {new Date(note.updated_at) > new Date(note.created_at) && (
                   <span className="text-xs">(editado)</span>
                 )}
               </div>

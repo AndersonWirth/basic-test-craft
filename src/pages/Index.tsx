@@ -1,13 +1,28 @@
 
-import { useState } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { AuthPage } from "@/components/AuthPage";
 import { TaskManager } from "@/components/TaskManager";
 import { NotesSection } from "@/components/NotesSection";
 import { Dashboard } from "@/components/Dashboard";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Monitor, ClipboardList, StickyNote, BarChart3 } from "lucide-react";
+import { Monitor, ClipboardList, StickyNote, BarChart3, LogOut, Loader2 } from "lucide-react";
 
 const Index = () => {
+  const { user, loading, signOut } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
@@ -17,7 +32,15 @@ const Index = () => {
               <Monitor className="h-8 w-8 text-primary" />
               <h1 className="text-2xl font-bold text-foreground">IT Manager Pro</h1>
             </div>
-            <p className="text-muted-foreground">Plataforma de Gestão para TI</p>
+            <div className="flex items-center gap-4">
+              <span className="text-muted-foreground">
+                Olá, {user.email}
+              </span>
+              <Button variant="outline" onClick={signOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sair
+              </Button>
+            </div>
           </div>
         </div>
       </header>
