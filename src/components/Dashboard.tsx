@@ -1,46 +1,69 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, CheckCircle, AlertTriangle, Server, Users, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Clock, CheckCircle, AlertTriangle, Server, Users, Zap, Plus } from "lucide-react";
+import { useTasks } from "@/hooks/useTasks";
+import { useNotes } from "@/hooks/useNotes";
+import { useMemo } from "react";
 
-export const Dashboard = () => {
-  const stats = [
-    {
-      title: "Tarefas Pendentes",
-      value: "12",
-      description: "Aguardando execução",
-      icon: Clock,
-      color: "text-yellow-500",
-    },
-    {
-      title: "Concluídas Hoje",
-      value: "8",
-      description: "Finalizadas nas últimas 24h",
-      icon: CheckCircle,
-      color: "text-green-500",
-    },
-    {
-      title: "Críticas",
-      value: "3",
-      description: "Requerem atenção imediata",
-      icon: AlertTriangle,
-      color: "text-red-500",
-    },
-    {
-      title: "Sistemas Ativos",
-      value: "24",
-      description: "Monitoramento em tempo real",
-      icon: Server,
-      color: "text-blue-500",
-    },
-  ];
+interface DashboardProps {
+  onNavigateToTasks?: () => void;
+  onNavigateToNotes?: () => void;
+}
 
-  const recentTasks = [
-    { id: 1, title: "Atualizar servidor de backup", priority: "Alta", status: "Em andamento" },
-    { id: 2, title: "Configurar nova VPN", priority: "Média", status: "Pendente" },
-    { id: 3, title: "Auditoria de segurança mensal", priority: "Alta", status: "Concluída" },
-    { id: 4, title: "Backup dos bancos de dados", priority: "Crítica", status: "Agendada" },
-  ];
+export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardProps) => {
+  const { tasks } = useTasks();
+  const { notes } = useNotes();
+
+  const stats = useMemo(() => {
+    const pendingTasks = tasks.filter(task => task.status === 'Pendente').length;
+    const completedToday = tasks.filter(task => {
+      const today = new Date();
+      const taskDate = new Date(task.updated_at);
+      return task.status === 'Concluída' && 
+             taskDate.toDateString() === today.toDateString();
+    }).length;
+    const criticalTasks = tasks.filter(task => task.priority === 'Crítica').length;
+    const totalNotes = notes.length;
+
+    return [
+      {
+        title: "Tarefas Pendentes",
+        value: pendingTasks.toString(),
+        description: "Aguardando execução",
+        icon: Clock,
+        color: "text-yellow-500",
+      },
+      {
+        title: "Concluídas Hoje",
+        value: completedToday.toString(),
+        description: "Finalizadas nas últimas 24h",
+        icon: CheckCircle,
+        color: "text-green-500",
+      },
+      {
+        title: "Críticas",
+        value: criticalTasks.toString(),
+        description: "Requerem atenção imediata",
+        icon: AlertTriangle,
+        color: "text-red-500",
+      },
+      {
+        title: "Anotações",
+        value: totalNotes.toString(),
+        description: "Documentação disponível",
+        icon: Users,
+        color: "text-blue-500",
+      },
+    ];
+  }, [tasks, notes]);
+
+  const recentTasks = useMemo(() => {
+    return tasks
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 5);
+  }, [tasks]);
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -81,67 +104,126 @@ export const Dashboard = () => {
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              Tarefas Recentes
-            </CardTitle>
-            <CardDescription>
-              Últimas atividades registradas no sistema
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                  Tarefas Recentes
+                </CardTitle>
+                <CardDescription>
+                  Últimas atividades registradas no sistema
+                </CardDescription>
+              </div>
+              {onNavigateToTasks && (
+                <Button variant="outline" size="sm" onClick={onNavigateToTasks}>
+                  Ver Todas
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentTasks.map((task) => (
-                <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex-1">
-                    <h4 className="text-sm font-medium">{task.title}</h4>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className={`w-2 h-2 rounded-full ${getPriorityColor(task.priority)}`}></div>
-                      <span className="text-xs text-muted-foreground">{task.priority}</span>
+            {recentTasks.length > 0 ? (
+              <div className="space-y-4">
+                {recentTasks.map((task) => (
+                  <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium">{task.title}</h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className={`w-2 h-2 rounded-full ${getPriorityColor(task.priority)}`}></div>
+                        <span className="text-xs text-muted-foreground">{task.priority}</span>
+                        <Badge variant="secondary" className="text-xs">{task.category}</Badge>
+                      </div>
                     </div>
+                    <Badge className={getStatusColor(task.status)}>
+                      {task.status}
+                    </Badge>
                   </div>
-                  <Badge className={getStatusColor(task.status)}>
-                    {task.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <CheckCircle className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                <p className="text-sm text-muted-foreground mb-4">
+                  Nenhuma tarefa cadastrada ainda
+                </p>
+                {onNavigateToTasks && (
+                  <Button onClick={onNavigateToTasks}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Criar Primeira Tarefa
+                  </Button>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-yellow-500" />
-              Alertas do Sistema
-            </CardTitle>
-            <CardDescription>
-              Monitoramento e notificações importantes
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-yellow-500" />
+                  Resumo do Sistema
+                </CardTitle>
+                <CardDescription>
+                  Status geral da plataforma
+                </CardDescription>
+              </div>
+              {notes.length === 0 && onNavigateToNotes && (
+                <Button variant="outline" size="sm" onClick={onNavigateToNotes}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar Anotação
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <div className="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                <div>
-                  <p className="text-sm font-medium">Espaço em disco baixo</p>
-                  <p className="text-xs text-muted-foreground">Servidor principal: 85% utilizado</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <Server className="h-4 w-4 text-blue-600" />
-                <div>
-                  <p className="text-sm font-medium">Backup concluído</p>
-                  <p className="text-xs text-muted-foreground">Último backup: há 2 horas</p>
-                </div>
-              </div>
               <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <Users className="h-4 w-4 text-green-600" />
+                <Server className="h-4 w-4 text-green-600" />
                 <div>
-                  <p className="text-sm font-medium">Sistema estável</p>
-                  <p className="text-xs text-muted-foreground">Todos os serviços funcionando</p>
+                  <p className="text-sm font-medium">Sistema operacional</p>
+                  <p className="text-xs text-muted-foreground">
+                    {tasks.length} tarefas • {notes.length} anotações
+                  </p>
                 </div>
               </div>
+              
+              {stats[0].value !== "0" && (
+                <div className="flex items-center gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                  <div>
+                    <p className="text-sm font-medium">Tarefas pendentes</p>
+                    <p className="text-xs text-muted-foreground">
+                      {stats[0].value} tarefa(s) aguardando execução
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {stats[2].value !== "0" && (
+                <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <div>
+                    <p className="text-sm font-medium">Atenção necessária</p>
+                    <p className="text-xs text-muted-foreground">
+                      {stats[2].value} tarefa(s) com prioridade crítica
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {tasks.length === 0 && notes.length === 0 && (
+                <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <Users className="h-4 w-4 text-blue-600" />
+                  <div>
+                    <p className="text-sm font-medium">Bem-vindo!</p>
+                    <p className="text-xs text-muted-foreground">
+                      Comece criando suas primeiras tarefas e anotações
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

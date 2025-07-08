@@ -7,9 +7,11 @@ import { Dashboard } from "@/components/Dashboard";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Monitor, ClipboardList, StickyNote, BarChart3, LogOut, Loader2 } from "lucide-react";
+import { useState } from "react";
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   if (loading) {
     return (
@@ -22,6 +24,14 @@ const Index = () => {
   if (!user) {
     return <AuthPage />;
   }
+
+  const handleNavigateToTasks = () => {
+    setActiveTab("tasks");
+  };
+
+  const handleNavigateToNotes = () => {
+    setActiveTab("notes");
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -46,7 +56,7 @@ const Index = () => {
       </header>
 
       <main className="container mx-auto px-4 py-6">
-        <Tabs defaultValue="dashboard" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
@@ -67,7 +77,10 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="dashboard">
-            <Dashboard />
+            <Dashboard 
+              onNavigateToTasks={handleNavigateToTasks}
+              onNavigateToNotes={handleNavigateToNotes}
+            />
           </TabsContent>
 
           <TabsContent value="tasks">
