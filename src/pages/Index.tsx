@@ -1,4 +1,3 @@
-
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthPage } from "@/components/AuthPage";
 import { TaskManager } from "@/components/TaskManager";
@@ -7,11 +6,12 @@ import { Dashboard } from "@/components/Dashboard";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Monitor, ClipboardList, StickyNote, BarChart3, LogOut, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const taskManagerRef = useRef<{ applyFilter: (filter: { status?: string; priority?: string }) => void }>(null);
 
   if (loading) {
     return (
@@ -31,6 +31,14 @@ const Index = () => {
 
   const handleNavigateToNotes = () => {
     setActiveTab("notes");
+  };
+
+  const handleNavigateToTasksWithFilter = (filter: { status?: string; priority?: string }) => {
+    setActiveTab("tasks");
+    // Aplicar filtro após um pequeno delay para garantir que o componente foi renderizado
+    setTimeout(() => {
+      taskManagerRef.current?.applyFilter(filter);
+    }, 100);
   };
 
   return (
@@ -80,11 +88,12 @@ const Index = () => {
             <Dashboard 
               onNavigateToTasks={handleNavigateToTasks}
               onNavigateToNotes={handleNavigateToNotes}
+              onNavigateToTasksWithFilter={handleNavigateToTasksWithFilter}
             />
           </TabsContent>
 
           <TabsContent value="tasks">
-            <TaskManager />
+            <TaskManager ref={taskManagerRef} />
           </TabsContent>
 
           <TabsContent value="notes">

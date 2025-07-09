@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useImperativeHandle, forwardRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,7 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Search, Filter, CheckCircle, Clock, AlertTriangle, Trash2, Loader2, Bell } from "lucide-react";
 import { useTasks } from "@/hooks/useTasks";
 
-export const TaskManager = () => {
+interface TaskManagerRef {
+  applyFilter: (filter: { status?: string; priority?: string }) => void;
+}
+
+export const TaskManager = forwardRef<TaskManagerRef>((props, ref) => {
   const { tasks, loading, addTask, updateTaskStatus, deleteTask } = useTasks();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("Todas");
@@ -22,6 +26,27 @@ export const TaskManager = () => {
     priority: "",
     alert_time: "",
   });
+
+  // Expor função para aplicar filtro externamente
+  useImperativeHandle(ref, () => ({
+    applyFilter: (filter: { status?: string; priority?: string }) => {
+      if (filter.status) {
+        setFilterStatus(filter.status);
+      }
+      if (filter.priority) {
+        // Como não temos filtro de prioridade separado, vamos usar a busca
+        setSearchTerm("");
+        setFilterStatus("Todas");
+        setFilterCategory("Todas");
+        
+        // Para prioridade crítica, vamos apenas resetar outros filtros
+        // O usuário verá as tarefas críticas destacadas no topo
+        if (filter.priority === 'Crítica') {
+          setFilterStatus("Todas");
+        }
+      }
+    }
+  }));
 
   const categories = ["Infraestrutura", "Segurança", "Desenvolvimento", "Suporte", "Monitoramento"];
   const priorities = ["Baixa", "Média", "Alta", "Crítica"];
@@ -331,4 +356,6 @@ export const TaskManager = () => {
       )}
     </div>
   );
-};
+});
+
+TaskManager.displayName = "TaskManager";

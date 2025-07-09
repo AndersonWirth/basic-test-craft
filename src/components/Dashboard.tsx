@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,9 +10,10 @@ import { useMemo } from "react";
 interface DashboardProps {
   onNavigateToTasks?: () => void;
   onNavigateToNotes?: () => void;
+  onNavigateToTasksWithFilter?: (filter: { status?: string; priority?: string }) => void;
 }
 
-export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardProps) => {
+export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes, onNavigateToTasksWithFilter }: DashboardProps) => {
   const { tasks } = useTasks();
   const { notes } = useNotes();
   
@@ -38,6 +38,7 @@ export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardPro
         description: "Aguardando execução",
         icon: Clock,
         color: "text-yellow-500",
+        onClick: () => onNavigateToTasksWithFilter?.({ status: 'Pendente' }),
       },
       {
         title: "Concluídas Hoje",
@@ -45,6 +46,7 @@ export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardPro
         description: "Finalizadas nas últimas 24h",
         icon: CheckCircle,
         color: "text-green-500",
+        onClick: () => onNavigateToTasksWithFilter?.({ status: 'Concluída' }),
       },
       {
         title: "Críticas",
@@ -52,6 +54,7 @@ export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardPro
         description: "Requerem atenção imediata",
         icon: AlertTriangle,
         color: "text-red-500",
+        onClick: () => onNavigateToTasksWithFilter?.({ priority: 'Crítica' }),
       },
       {
         title: "Anotações",
@@ -59,9 +62,10 @@ export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardPro
         description: "Documentação disponível",
         icon: Users,
         color: "text-blue-500",
+        onClick: () => onNavigateToNotes?.(),
       },
     ];
-  }, [tasks, notes]);
+  }, [tasks, notes, onNavigateToTasksWithFilter, onNavigateToNotes]);
 
   // Ordenar tarefas por prioridade (Crítica primeiro)
   const recentTasks = useMemo(() => {
@@ -106,7 +110,13 @@ export const Dashboard = ({ onNavigateToTasks, onNavigateToNotes }: DashboardPro
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat, index) => (
-          <Card key={index} className={stat.title === "Críticas" && parseInt(stat.value) > 0 ? "border-red-500 bg-red-50 shadow-lg" : ""}>
+          <Card 
+            key={index} 
+            className={`cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+              stat.title === "Críticas" && parseInt(stat.value) > 0 ? "border-red-500 bg-red-50 shadow-lg" : "hover:bg-muted/50"
+            }`}
+            onClick={stat.onClick}
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
               <div className="flex items-center gap-2">
