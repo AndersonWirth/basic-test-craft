@@ -89,19 +89,20 @@ export const useTaskAlerts = (tasks: Task[]) => {
   }, []);
 
   const checkCriticalTasks = useCallback(() => {
-    // Verificar tarefas críticas que não foram notificadas
-    const criticalTasks = tasks.filter(task => {
+    // Verificar tarefas críticas SEM alert_time definido (para alerta imediato)
+    const criticalTasksWithoutAlert = tasks.filter(task => {
       const isCritical = task.priority === 'Crítica';
       const isPending = task.status === 'Pendente' || task.status === 'Agendada';
-      const notNotified = !notifiedTasksRef.current.has(`critical-${task.id}`);
+      const hasNoAlertTime = !task.alert_time; // Só alertar tarefas SEM horário específico
+      const notNotified = !notifiedTasksRef.current.has(`critical-immediate-${task.id}`);
       
-      return isCritical && isPending && notNotified;
+      return isCritical && isPending && hasNoAlertTime && notNotified;
     });
 
-    if (criticalTasks.length > 0) {
-      criticalTasks.forEach(task => {
-        // Marcar como notificada para tarefas críticas
-        notifiedTasksRef.current.add(`critical-${task.id}`);
+    if (criticalTasksWithoutAlert.length > 0) {
+      criticalTasksWithoutAlert.forEach(task => {
+        // Marcar como notificada para tarefas críticas imediatas
+        notifiedTasksRef.current.add(`critical-immediate-${task.id}`);
         
         // Reproduzir som
         playAlertSound();
@@ -119,7 +120,7 @@ export const useTaskAlerts = (tasks: Task[]) => {
           `Tarefa crítica: ${task.title}`
         );
 
-        console.log('Alerta crítico disparado para:', task.title);
+        console.log('Alerta crítico imediato disparado para:', task.title);
       });
     }
   }, [tasks, playAlertSound, toast, showNotification]);
@@ -127,7 +128,7 @@ export const useTaskAlerts = (tasks: Task[]) => {
   const checkScheduledAlerts = useCallback(() => {
     const now = new Date();
     
-    // Filtrar tarefas que têm horário de alerta definido
+    // Filtrar tarefas que têm horário de alerta definido (incluindo críticas com horário)
     const tasksToAlert = tasks.filter(task => {
       if (!task.alert_time) return false;
       
@@ -150,20 +151,29 @@ export const useTaskAlerts = (tasks: Task[]) => {
         // Reproduzir som
         playAlertSound();
         
+        // Determinar o tipo de alerta baseado na prioridade
+        const alertTitle = task.priority === 'Crítica' 
+          ? "🚨 ALERTA CRÍTICO AGENDADO" 
+          : "⏰ Alerta de Tarefa Agendada";
+        
+        const alertDescription = task.priority === 'Crítica'
+          ? `TAREFA CRÍTICA: ${task.title} - Horário: ${new Date(task.alert_time!).toLocaleTimeString('pt-BR')}`
+          : `${task.title} - Horário: ${new Date(task.alert_time!).toLocaleTimeString('pt-BR')}`;
+        
         // Mostrar toast
         toast({
-          title: "⏰ Alerta de Tarefa Agendada",
-          description: `${task.title} - Horário: ${new Date(task.alert_time!).toLocaleTimeString('pt-BR')}`,
+          title: alertTitle,
+          description: alertDescription,
           variant: "destructive",
         });
         
         // Mostrar notificação do navegador
         showNotification(
-          "⏰ Alerta de Tarefa",
+          alertTitle,
           `${task.title} - ${task.priority === 'Crítica' ? '🚨 CRÍTICA' : task.priority}`
         );
 
-        console.log('Alerta agendado disparado para:', task.title);
+        console.log('Alerta agendado disparado para:', task.title, 'Prioridade:', task.priority);
       });
     }
   }, [tasks, playAlertSound, toast, showNotification]);
@@ -182,7 +192,7 @@ export const useTaskAlerts = (tasks: Task[]) => {
     };
     document.addEventListener('click', initAudio);
 
-    // Verificar alertas críticos imediatamente e depois a cada 30 segundos
+    // Verificar alertas críticos imediatos e agendados
     checkCriticalTasks();
     checkScheduledAlerts();
 
@@ -200,7 +210,7 @@ export const useTaskAlerts = (tasks: Task[]) => {
   useEffect(() => {
     const completedTasks = tasks.filter(task => task.status === 'Concluída');
     completedTasks.forEach(task => {
-      notifiedTasksRef.current.delete(`critical-${task.id}`);
+      notifiedTasksRef.current.delete(`critical-immediate-${task.id}`);
       notifiedTasksRef.current.delete(`scheduled-${task.id}`);
     });
   }, [tasks]);
