@@ -7,15 +7,34 @@ export const useTaskAlerts = (tasks: Task[]) => {
   const { toast } = useToast();
   const alertIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const notifiedTasksRef = useRef<Set<string>>(new Set());
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  const initAudioContext = useCallback(() => {
+    if (!audioContextRef.current) {
+      try {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      } catch (error) {
+        console.log('AudioContext não suportado:', error);
+      }
+    }
+    return audioContextRef.current;
+  }, []);
 
   const playAlertSound = useCallback(() => {
     try {
-      // Criar contexto de áudio
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioContext = initAudioContext();
+      if (!audioContext) return;
+
+      // Garantir que o contexto esteja ativo
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
       
       // Sequência de tons para alerta crítico
       const playTone = (frequency: number, duration: number, delay: number = 0) => {
         setTimeout(() => {
+          if (!audioContext) return;
+          
           const oscillator = audioContext.createOscillator();
           const gainNode = audioContext.createGain();
           
@@ -26,7 +45,7 @@ export const useTaskAlerts = (tasks: Task[]) => {
           oscillator.type = 'sine';
           
           gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-          gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.01);
+          gainNode.gain.linearRampToValueAtTime(0.4, audioContext.currentTime + 0.01);
           gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
           
           oscillator.start(audioContext.currentTime);
@@ -34,20 +53,20 @@ export const useTaskAlerts = (tasks: Task[]) => {
         }, delay);
       };
 
-      // Sequência de alerta mais intensa: 5 bips
-      playTone(1000, 0.3, 0);
-      playTone(800, 0.3, 400);
-      playTone(1000, 0.3, 800);
-      playTone(800, 0.3, 1200);
-      playTone(1200, 0.5, 1600);
+      // Sequência de alerta mais intensa: 5 bips rápidos
+      playTone(1000, 0.2, 0);
+      playTone(800, 0.2, 300);
+      playTone(1200, 0.2, 600);
+      playTone(900, 0.2, 900);
+      playTone(1400, 0.3, 1200);
       
     } catch (error) {
-      console.log('Não foi possível reproduzir o som de alerta:', error);
+      console.log('Erro ao reproduzir som de alerta:', error);
     }
-  }, []);
+  }, [initAudioContext]);
 
   const showNotification = useCallback((title: string, body: string) => {
-    // Tentar usar Web Notifications API para alertas mesmo com aba não focada
+    // Tentar usar Web Notifications API
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification(title, {
         body,
@@ -56,7 +75,6 @@ export const useTaskAlerts = (tasks: Task[]) => {
         requireInteraction: true
       });
     } else if ('Notification' in window && Notification.permission !== 'denied') {
-      // Solicitar permissão para notificações
       Notification.requestPermission().then((permission) => {
         if (permission === 'granted') {
           new Notification(title, {
@@ -70,12 +88,47 @@ export const useTaskAlerts = (tasks: Task[]) => {
     }
   }, []);
 
+  const checkCriticalTasks = useCallback(() => {
+    // Verificar tarefas críticas que não foram notificadas
+    const criticalTasks = tasks.filter(task => {
+      const isCritical = task.priority === 'Crítica';
+      const isPending = task.status === 'Pendente' || task.status === 'Agendada';
+      const notNotified = !notifiedTasksRef.current.has(`critical-${task.id}`);
+      
+      return isCritical && isPending && notNotified;
+    });
+
+    if (criticalTasks.length > 0) {
+      criticalTasks.forEach(task => {
+        // Marcar como notificada para tarefas críticas
+        notifiedTasksRef.current.add(`critical-${task.id}`);
+        
+        // Reproduzir som
+        playAlertSound();
+        
+        // Mostrar toast
+        toast({
+          title: "🚨 ALERTA CRÍTICO",
+          description: `Tarefa crítica detectada: ${task.title}`,
+          variant: "destructive",
+        });
+        
+        // Mostrar notificação do navegador
+        showNotification(
+          "🚨 ALERTA CRÍTICO",
+          `Tarefa crítica: ${task.title}`
+        );
+
+        console.log('Alerta crítico disparado para:', task.title);
+      });
+    }
+  }, [tasks, playAlertSound, toast, showNotification]);
+
   const checkScheduledAlerts = useCallback(() => {
     const now = new Date();
     
-    // Filtrar APENAS tarefas que têm horário de alerta definido
+    // Filtrar tarefas que têm horário de alerta definido
     const tasksToAlert = tasks.filter(task => {
-      // Só processar tarefas que têm alert_time definido
       if (!task.alert_time) return false;
       
       const alertTime = new Date(task.alert_time);
@@ -83,20 +136,16 @@ export const useTaskAlerts = (tasks: Task[]) => {
       
       // Verificar se está no horário do alerta (dentro de 1 minuto de margem)
       const isAlertTime = timeDiff <= 60000 && timeDiff >= -60000;
-      
-      // Verificar se a tarefa ainda está pendente ou agendada
       const isPending = task.status === 'Pendente' || task.status === 'Agendada';
-      
-      // Verificar se já foi notificada
-      const alreadyNotified = notifiedTasksRef.current.has(task.id);
+      const alreadyNotified = notifiedTasksRef.current.has(`scheduled-${task.id}`);
       
       return isAlertTime && isPending && !alreadyNotified;
     });
 
     if (tasksToAlert.length > 0) {
       tasksToAlert.forEach(task => {
-        // Marcar como notificada
-        notifiedTasksRef.current.add(task.id);
+        // Marcar como notificada para alertas agendados
+        notifiedTasksRef.current.add(`scheduled-${task.id}`);
         
         // Reproduzir som
         playAlertSound();
@@ -113,44 +162,48 @@ export const useTaskAlerts = (tasks: Task[]) => {
           "⏰ Alerta de Tarefa",
           `${task.title} - ${task.priority === 'Crítica' ? '🚨 CRÍTICA' : task.priority}`
         );
+
+        console.log('Alerta agendado disparado para:', task.title);
       });
     }
   }, [tasks, playAlertSound, toast, showNotification]);
 
+  // Efeito para solicitar permissões e configurar intervalos
   useEffect(() => {
-    // Solicitar permissão para notificações quando o hook é inicializado
+    // Solicitar permissão para notificações
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
 
-    // Limpar alertas notificados quando as tarefas mudam
-    notifiedTasksRef.current.clear();
+    // Inicializar contexto de áudio no primeiro clique do usuário
+    const initAudio = () => {
+      initAudioContext();
+      document.removeEventListener('click', initAudio);
+    };
+    document.addEventListener('click', initAudio);
 
-    // Verificar alertas agendados a cada 30 segundos
-    const alertInterval = setInterval(() => {
-      checkScheduledAlerts();
-    }, 30000);
+    // Verificar alertas críticos imediatamente e depois a cada 30 segundos
+    checkCriticalTasks();
+    checkScheduledAlerts();
 
-    // Verificar imediatamente ao carregar (aguardar 2 segundos para evitar alertas na criação)
-    const timeoutId = setTimeout(() => {
-      checkScheduledAlerts();
-    }, 2000);
-
-    alertIntervalRef.current = alertInterval;
+    const criticalInterval = setInterval(checkCriticalTasks, 30000);
+    const scheduledInterval = setInterval(checkScheduledAlerts, 30000);
 
     return () => {
-      clearInterval(alertInterval);
-      clearTimeout(timeoutId);
+      clearInterval(criticalInterval);
+      clearInterval(scheduledInterval);
+      document.removeEventListener('click', initAudio);
     };
-  }, [checkScheduledAlerts]);
+  }, [checkCriticalTasks, checkScheduledAlerts, initAudioContext]);
 
   // Limpar notificações quando as tarefas são concluídas
   useEffect(() => {
     const completedTasks = tasks.filter(task => task.status === 'Concluída');
     completedTasks.forEach(task => {
-      notifiedTasksRef.current.delete(task.id);
+      notifiedTasksRef.current.delete(`critical-${task.id}`);
+      notifiedTasksRef.current.delete(`scheduled-${task.id}`);
     });
   }, [tasks]);
 
-  return { playAlertSound, checkScheduledAlerts };
+  return { playAlertSound, checkScheduledAlerts, checkCriticalTasks };
 };
