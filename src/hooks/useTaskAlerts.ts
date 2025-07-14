@@ -133,14 +133,23 @@ export const useTaskAlerts = (tasks: Task[]) => {
       if (!task.alert_time) return false;
       
       const alertTime = new Date(task.alert_time);
-      const timeDiff = alertTime.getTime() - now.getTime();
       
-      // Verificar se está no horário do alerta (dentro de 1 minuto de margem)
-      const isAlertTime = timeDiff <= 60000 && timeDiff >= -60000;
+      // Comparação mais precisa - apenas horas e minutos
+      const nowHours = now.getHours();
+      const nowMinutes = now.getMinutes();
+      const alertHours = alertTime.getHours();
+      const alertMinutes = alertTime.getMinutes();
+
+      // Verificar se é exatamente o horário (mesmo hora e minuto)
+      const isExactTime = nowHours === alertHours && nowMinutes === alertMinutes;
+
+      // Verificar também se é o mesmo dia
+      const isSameDay = now.toDateString() === alertTime.toDateString();
+      
       const isPending = task.status === 'Pendente' || task.status === 'Agendada';
       const alreadyNotified = notifiedTasksRef.current.has(`scheduled-${task.id}`);
       
-      return isAlertTime && isPending && !alreadyNotified;
+      return isExactTime && isSameDay && isPending && !alreadyNotified;
     });
 
     if (tasksToAlert.length > 0) {
@@ -197,7 +206,7 @@ export const useTaskAlerts = (tasks: Task[]) => {
     checkScheduledAlerts();
 
     const criticalInterval = setInterval(checkCriticalTasks, 30000);
-    const scheduledInterval = setInterval(checkScheduledAlerts, 30000);
+    const scheduledInterval = setInterval(checkScheduledAlerts, 60000);
 
     return () => {
       clearInterval(criticalInterval);
@@ -212,6 +221,20 @@ export const useTaskAlerts = (tasks: Task[]) => {
     completedTasks.forEach(task => {
       notifiedTasksRef.current.delete(`critical-immediate-${task.id}`);
       notifiedTasksRef.current.delete(`scheduled-${task.id}`);
+    });
+
+    // Limpar notificações antigas (mais de 24 horas)
+    const now = new Date();
+    tasks.forEach(task => {
+      if (task.alert_time) {
+        const alertTime = new Date(task.alert_time);
+        const timeDiff = now.getTime() - alertTime.getTime();
+        
+        // Se passou mais de 24 horas, limpar da lista de notificados
+        if (timeDiff > 24 * 60 * 60 * 1000) {
+          notifiedTasksRef.current.delete(`scheduled-${task.id}`);
+        }
+      }
     });
   }, [tasks]);
 
